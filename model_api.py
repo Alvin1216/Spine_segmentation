@@ -4,7 +4,7 @@ import os, cv2, random ,sys
 from os import listdir
 from os.path import isfile, join
 from scipy.ndimage import label, generate_binary_structure
-from unet import unet_original_size
+from unet import unet_original_size,unet_div2
 
 
 
@@ -69,8 +69,9 @@ def model_loader(path):
     # else:
     #     print('wrong_model_name!')
     try:
-      model_best = unet_original_size()
+      model_best = unet_div2()
       model_best.load_weights(path)
+      print("Model_load finished!")
       return model_best
     except:
       print('model has something wrong!')
@@ -208,5 +209,85 @@ def image_reader(path):
 # #print(np.float32(label.reshape(1200,512)).dtype)
 #plt.imshow(np.float32(label.reshape(1200,512)))
 #plt.show()
+def dice_cof_v2(label_gt,predict):
+  #need to both be binary image!
+  label_flatten = label_gt.flatten()
+  predict_flatten = predict.flatten()
+
+  label_gt_abs = len(np.where(label_flatten >0 )[0])
+  predict_abs = len(np.where(predict_flatten > 0)[0])
+  
+  #transfer it to image type
+  #label_gt = np.array(label_gt,dtype=np.uint8)
+  #predict = np.array(predict,dtype=np.uint8)
+
+  #intersection = np.array(cv2.bitwise_and(label_gt,predict),dtype=np.uint8)
+  intersection = label_flatten*predict_flatten
+  intersection_abs = len(np.where(intersection > 0)[0])
+  #print(label_gt_abs,predict_abs,intersection_abs)
+  dice = (2*intersection_abs) / (label_gt_abs + predict_abs+0.0001)
+  return dice
+
+def find_each_dice(original_mask,predict_binary_mask):
+  #both mask need to be binary type!
+  original_mask = original_mask.reshape(1200,512)
+  predict_binary_mask = predict_binary_mask.reshape(1200,512)
+  original_mask_sep = seperated_aspine(original_mask)
+  predict_binary_mask_sep = seperated_aspine(predict_binary_mask)
+  dice_list = []
+  for original_mask in original_mask_sep:
+    temp_dice_list = []
+    for predict_binary in predict_binary_mask_sep:
+      temp_dice_list.append(round(dice_cof_v2(original_mask,predict_binary),3))
+    dice_list.append(max(temp_dice_list))
+  return dice_list
+
+
+def image_predict_v2(single_test_image,single_test_label,model):
+  print('Predict start!')
+  predict = model.predict(single_test_image.reshape(1,1200,512,1),batch_size=4)
+  print('Predict finished!')
+
+  predict_binary = np.where(predict[i]>0.99,1,0).reshape(1200,512)
+
+  print('Start to calculate dice!')
+  dice_list = find_each_dice(original_mask=single_test_label,predict_binary_mask=predict_binary)
+
+  return_dice_list = [None]*21
+  for index in range(0,len(dice_list)):
+      return_dice_list[index] = dice_list[index]
+      print('DC',str(index+1),':',dice_list[index])
+  
+  #return_dice_list = [0]*20
+  #for i in 
+  #return_dice_list = dice_list.copy()
+  return_dice_list[19] = round(np.mean(np.array(dice_list)),3)
+  return_dice_list[20] = round(dice_cof_v2(single_test_label,predict_binary),3)
+  print('Calculate dice finished!')
+
+  print('Generating the result!')
+  plt.subplot(1,4,1)
+  plt.imshow(single_test_image.reshape(1200,512))
+  plt.axis('off')
+  plt.title('original')
+  plt.subplot(1,4,2)
+  plt.imshow(single_test_label.reshape(1200,512))
+  plt.axis('off')
+  plt.title('label')
+  plt.subplot(1,4,3)
+  plt.imshow(predict_binary.reshape(1200,512),cmap='gray')
+  plt.axis('off')
+  plt.title('predict label')
+  plt.subplot(1,4,4)
+  plt.imshow(overlap(single_test_image,predict_binary))
+  plt.axis('off')
+  plt.title('overlap')
+  plt.savefig('final_result.png')
+  #plt.show()
+  print('Generating finished!')
+
+  print('return_dice_list',len(return_dice_list))
+  return return_dice_list
+
 
 

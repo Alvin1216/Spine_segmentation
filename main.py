@@ -4,7 +4,7 @@ from ui import Ui_MainWindow  # importing our generated file
 import sys
 from os import listdir
 from os.path import isfile, join
-from model_api import model_loader,image_reader,image_predict
+from model_api import model_loader,image_reader,image_predict,image_predict_v2
 
 class mywindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -36,7 +36,7 @@ class mywindow(QtWidgets.QMainWindow):
         #return model_path
 
     def execute(self):
-        dc_list = image_predict(self.img,self.mask,self.model)
+        dc_list = image_predict_v2(self.img,self.mask,self.model)
         self.ui.picture.setPixmap(QtGui.QPixmap("final_result.png"))
 
         self.ui.label.setText('DC 1: '+ str(dc_list[0]))
